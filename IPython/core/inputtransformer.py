@@ -41,28 +41,28 @@ ESC_SEQUENCES = [ESC_SHELL, ESC_SH_CAP, ESC_HELP ,\
 
 class InputTransformer(metaclass=abc.ABCMeta):
     """Abstract base class for line-based input transformers."""
-    
+
     @abc.abstractmethod
     def push(self, line):
         """Send a line of input to the transformer, returning the transformed
         input or None if the transformer is waiting for more input.
-        
+
         Must be overridden by subclasses.
 
         Implementations may raise ``SyntaxError`` if the input is invalid. No
         other exceptions may be raised.
         """
         pass
-    
+
     @abc.abstractmethod
     def reset(self):
         """Return, transformed any lines that the transformer has accumulated,
         and reset its internal state.
-        
+
         Must be overridden by subclasses.
         """
         pass
-    
+
     @classmethod
     def wrap(cls, func):
         """Can be used by subclasses as a decorator, to return a factory that
@@ -71,22 +71,22 @@ class InputTransformer(metaclass=abc.ABCMeta):
         @functools.wraps(func)
         def transformer_factory(**kwargs):
             return cls(func, **kwargs)
-        
+
         return transformer_factory
 
 class StatelessInputTransformer(InputTransformer):
     """Wrapper for a stateless input transformer implemented as a function."""
     def __init__(self, func):
         self.func = func
-    
+
     def __repr__(self):
         return "StatelessInputTransformer(func={0!r})".format(self.func)
-    
+
     def push(self, line):
         """Send a line of input to the transformer, returning the
         transformed input."""
         return self.func(line)
-    
+
     def reset(self):
         """No-op - exists for compatibility."""
         pass
@@ -97,17 +97,17 @@ class CoroutineInputTransformer(InputTransformer):
         # Prime it
         self.coro = coro(**kwargs)
         next(self.coro)
-    
+
     def __repr__(self):
         return "CoroutineInputTransformer(coro={0!r})".format(self.coro)
-    
+
     def push(self, line):
         """Send a line of input to the transformer, returning the
         transformed input or None if the transformer is waiting for more
         input.
         """
         return self.coro.send(line)
-    
+
     def reset(self):
         """Return, transformed any lines that the transformer has
         accumulated, and reset its internal state.
@@ -116,7 +116,7 @@ class CoroutineInputTransformer(InputTransformer):
 
 class TokenInputTransformer(InputTransformer):
     """Wrapper for a token-based input transformer.
-    
+
     func should accept a list of tokens (5-tuples, see tokenize docs), and
     return an iterable which can be passed to tokenize.untokenize().
     """
@@ -149,14 +149,14 @@ class TokenInputTransformer(InputTransformer):
             # Multi-line statement - stop and try again with the next line
             self.reset_tokenizer()
             return None
-        
+
         return self.output(tokens)
-    
+
     def output(self, tokens):
         self.buf.clear()
         self.reset_tokenizer()
         return untokenize(self.func(tokens)).rstrip('\n')
-    
+
     def reset(self):
         l = ''.join(self.buf)
         self.buf.clear()
@@ -167,7 +167,7 @@ class TokenInputTransformer(InputTransformer):
 class assemble_python_lines(TokenInputTransformer):
     def __init__(self):
         super(assemble_python_lines, self).__init__(None)
-    
+
     def output(self, tokens):
         return self.reset()
 
@@ -179,7 +179,7 @@ def assemble_logical_lines():
         line = (yield line)
         if not line or line.isspace():
             continue
-        
+
         parts = []
         while line is not None:
             if line.endswith('\\') and (not has_comment(line)):
@@ -188,7 +188,7 @@ def assemble_logical_lines():
             else:
                 parts.append(line)
                 break
-        
+
         # Output
         line = ''.join(parts)
 
@@ -208,16 +208,28 @@ def _make_help_call(target, esc, lspace, next_input=None):
     else:
         return '%sget_ipython().set_next_input(%r);get_ipython().run_line_magic(%r, %r)' % \
            (lspace, next_input, t_magic_name, t_magic_arg_s)
-    
+
 # These define the transformations for the different escape characters.
 def _tr_system(line_info):
     "Translate lines escaped with: !"
     cmd = line_info.line.lstrip().lstrip(ESC_SHELL)
+    cmd_list = cmd.split(" ")
+    if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
+        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd[1]
+    else:
+        cmd = "echo ! is not able"
+
     return '%sget_ipython().system(%r)' % (line_info.pre, cmd)
 
 def _tr_system2(line_info):
     "Translate lines escaped with: !!"
     cmd = line_info.line.lstrip()[2:]
+    cmd_list = cmd.split(" ")
+    if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
+        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd[1]
+    else:
+        cmd = "echo ! is not able"
+
     return '%sget_ipython().getoutput(%r)' % (line_info.pre, cmd)
 
 def _tr_help(line_info):
@@ -272,7 +284,7 @@ def escaped_commands(line):
     lineinf = LineInfo(line)
     if lineinf.esc not in tr:
         return line
-    
+
     return tr[lineinf.esc](lineinf)
 
 _initial_space_re = re.compile(r'\s*')
@@ -324,7 +336,7 @@ def has_comment(src):
 def ends_in_comment_or_string(src):
     """Indicates whether or not an input line ends in a comment or within
     a multiline string.
-    
+
     Parameters
     ----------
     src : string
@@ -337,7 +349,7 @@ def ends_in_comment_or_string(src):
     """
     toktypes = _line_tokens(src)
     return (tokenize.COMMENT in toktypes) or (_MULTILINE_STRING in toktypes)
-        
+
 
 @StatelessInputTransformer.wrap
 def help_end(line):
@@ -358,7 +370,7 @@ def help_end(line):
 @CoroutineInputTransformer.wrap
 def cellmagic(end_on_blank_line=False):
     """Captures & transforms cell magics.
-    
+
     After a cell magic is started, this stores up any lines it gets until it is
     reset (sent None).
     """
@@ -370,17 +382,17 @@ def cellmagic(end_on_blank_line=False):
         # consume leading empty lines
         while not line:
             line = (yield line)
-        
+
         if not line.startswith(ESC_MAGIC2):
             # This isn't a cell magic, idle waiting for reset then start over
             while line is not None:
                 line = (yield line)
             continue
-        
+
         if cellmagic_help_re.match(line):
             # This case will be handled by help_end
             continue
-        
+
         first = line
         body = []
         line = (yield None)
@@ -388,7 +400,7 @@ def cellmagic(end_on_blank_line=False):
                                 ((line.strip() != '') or not end_on_blank_line):
             body.append(line)
             line = (yield None)
-        
+
         # Output
         magic_name, _, first = first.partition(' ')
         magic_name = magic_name.lstrip(ESC_MAGIC2)
@@ -397,7 +409,7 @@ def cellmagic(end_on_blank_line=False):
 
 def _strip_prompts(prompt_re, initial_re=None, turnoff_re=None):
     """Remove matching input prompts from a block of input.
-    
+
     Parameters
     ----------
     prompt_re : regular expression
@@ -407,7 +419,7 @@ def _strip_prompts(prompt_re, initial_re=None, turnoff_re=None):
         If no initial expression is given, prompt_re will be used everywhere.
         Used mainly for plain Python prompts, where the continuation prompt
         ``...`` is a valid Python expression in Python 3, so shouldn't be stripped.
-    
+
     If initial_re and prompt_re differ,
     only initial_re will be tested against the first line.
     If any prompt is found on the first two lines,
@@ -418,7 +430,7 @@ def _strip_prompts(prompt_re, initial_re=None, turnoff_re=None):
     line = ''
     while True:
         line = (yield line)
-        
+
         # First line of cell
         if line is None:
             continue
@@ -432,7 +444,7 @@ def _strip_prompts(prompt_re, initial_re=None, turnoff_re=None):
                 continue
 
         line = (yield out)
-        
+
         if line is None:
             continue
         # check for any prompt on the second line of the cell,
@@ -440,13 +452,13 @@ def _strip_prompts(prompt_re, initial_re=None, turnoff_re=None):
         # so we might not see it in the first line.
         out, n2 = prompt_re.subn('', line, count=1)
         line = (yield out)
-        
+
         if n1 or n2:
             # Found a prompt in the first two lines - check for it in
             # the rest of the cell as well.
             while line is not None:
                 line = (yield prompt_re.sub('', line, count=1))
-        
+
         else:
             # Prompts not in input - wait for reset
             while line is not None:
@@ -475,7 +487,7 @@ def ipy_prompt():
 @CoroutineInputTransformer.wrap
 def leading_indent():
     """Remove leading indentation.
-    
+
     If the first line starts with a spaces or tabs, the same whitespace will be
     removed from each following line until it is reset.
     """
@@ -483,10 +495,10 @@ def leading_indent():
     line = ''
     while True:
         line = (yield line)
-        
+
         if line is None:
             continue
-        
+
         m = space_re.match(line)
         if m:
             space = m.group(0)
@@ -518,8 +530,18 @@ def assign_from_system(line):
     m = assign_system_re.match(line)
     if m is None:
         return line
-    
-    return assign_system_template % m.group('lhs', 'cmd')
+    var, cmd = m.group('lhs', 'cmd')
+    cmd_list = cmd.split(" ")
+    if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
+        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd[1]
+    else:
+        cmd = "echo ! is not able"
+    #print(f'var={var}, cmd={cmd}')
+    #print(assign_system_template % m.group('lhs', 'cmd'))
+
+    return assign_system_template % (var, cmd)
+
+    # return assign_system_template % m.group('lhs', 'cmd')
 
 assign_magic_re = re.compile(r'{}%\s*(?P<cmd>.*)'.format(_assign_pat), re.VERBOSE)
 assign_magic_template = '%s = get_ipython().run_line_magic(%r, %r)'
