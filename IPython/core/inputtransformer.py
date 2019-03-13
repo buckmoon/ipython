@@ -215,7 +215,7 @@ def _tr_system(line_info):
     cmd = line_info.line.lstrip().lstrip(ESC_SHELL)
     cmd_list = cmd.split(" ")
     if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
-        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd[1]
+        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd_list[1]
     else:
         cmd = "echo ! is not able"
 
@@ -226,7 +226,7 @@ def _tr_system2(line_info):
     cmd = line_info.line.lstrip()[2:]
     cmd_list = cmd.split(" ")
     if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
-        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd[1]
+        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd_list[1]
     else:
         cmd = "echo ! is not able"
 
@@ -533,7 +533,7 @@ def assign_from_system(line):
     var, cmd = m.group('lhs', 'cmd')
     cmd_list = cmd.split(" ")
     if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
-        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd[1]
+        cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd_list[1]
     else:
         cmd = "echo ! is not able"
     #print(f'var={var}, cmd={cmd}')
