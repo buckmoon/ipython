@@ -13,6 +13,7 @@ import struct
 import sys
 import warnings
 from copy import deepcopy
+from os.path import splitext
 
 from IPython.utils.py3compat import cast_unicode
 from IPython.testing.skipdoctest import skip_doctest
@@ -1250,7 +1251,11 @@ class Image(DisplayObject):
 
     def _data_and_metadata(self, always_both=False):
         """shortcut for returning metadata with shape information, if defined"""
-        b64_data = b2a_base64(self.data).decode('ascii')
+        try:
+            b64_data = b2a_base64(self.data).decode('ascii')
+        except TypeError:
+            raise FileNotFoundError(
+                "No such file or directory: '%s'" % (self.data))
         md = {}
         if self.metadata:
             md.update(self.metadata)
@@ -1274,7 +1279,13 @@ class Image(DisplayObject):
             return self._data_and_metadata()
 
     def _find_ext(self, s):
-        return s.split('.')[-1].lower()
+        base, ext = splitext(s)
+
+        if not ext:
+            return base
+
+        # `splitext` includes leading period, so we skip it
+        return ext[1:].lower()
 
 
 class Video(DisplayObject):

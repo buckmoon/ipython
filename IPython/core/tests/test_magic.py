@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import warnings
+from textwrap import dedent
 from unittest import TestCase
 from importlib import invalidate_caches
 from io import StringIO
@@ -418,6 +419,29 @@ def test_time3():
         ip.run_cell("%%time\n"
                     "run = 0\n"
                     "run += 1")
+
+def test_multiline_time():
+    """Make sure last statement from time return a value."""
+    ip = get_ipython()
+    ip.user_ns.pop('run', None)
+
+    ip.run_cell(dedent("""\
+        %%time
+        a = "ho"
+        b = "hey"
+        a+b
+        """))
+    nt.assert_equal(ip.user_ns_hidden['_'], 'hohey')
+
+def test_time_local_ns():
+    """
+    Test that local_ns is actually global_ns when running a cell magic
+    """
+    ip = get_ipython()
+    ip.run_cell("%%time\n"
+                "myvar = 1")
+    nt.assert_equal(ip.user_ns['myvar'], 1)
+    del ip.user_ns['myvar']
 
 def test_doctest_mode():
     "Toggle doctest_mode twice, it should be a no-op and run without error"
