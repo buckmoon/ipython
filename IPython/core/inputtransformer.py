@@ -213,13 +213,20 @@ def _make_help_call(target, esc, lspace, next_input=None):
 def _tr_system(line_info):
     "Translate lines escaped with: !"
     cmd = line_info.line.lstrip().lstrip(ESC_SHELL)
+    exec_list = []
     cmd_list = cmd.split(" ")
     if cmd_list[0] == "MIW_GROUP_DATA_DELETE":
         cmd = "curl -X DELETE -H \"Content-Type: application/json\" -H \"Authorization:Bearer $access_token\" http://localhost:5000/api/v1/dataset_groups/dataset_group_data/" + cmd_list[1]
+        exec_list.append('%sget_ipython().system(%r)' % (line_info.pre, cmd))
+        cmd = f"if \"DatasetGroup\" in locals():\
+            \n target_list = [i for i in range(len(DatasetGroup)) if DatasetGroup[i].data_info[\"raw_data_group_data_id\"] == {cmd_list[1]}]\
+            \n if len(target_list) == 1:\n  target_index = target_list[0]\n  DatasetGroup.pop(target_index)"
+        exec_list.append('%sget_ipython().ex(%r)' % (line_info.pre, cmd))
     else:
         cmd = "echo ! is not able"
+        exec_list.append('%sget_ipython().system(%r)' % (line_info.pre, cmd))
 
-    return '%sget_ipython().system(%r)' % (line_info.pre, cmd)
+    return "\n".join(exec_list)
 
 def _tr_system2(line_info):
     "Translate lines escaped with: !!"
